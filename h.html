@@ -1,0 +1,301 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><script>document.addEventListener("DOMContentLoaded", function () {
+    let startButton = document.getElementById("start-button");
+    let missile = document.getElementById("missile-container");
+    let fire = document.querySelector(".fire");
+    let bgContainer = document.querySelector(".background-container");
+    let asteroidContainer = document.getElementById("asteroids-container");
+    let scoreBoard = document.getElementById("scoreboard");
+    let restartButton = document.getElementById("restart-button");
+
+    let velocity = 0;
+    let isMovingUp = false;
+    let score = 0;
+    let gameRunning = false;
+    let backgroundSpeed = 2;
+    let angle = 0;
+    let gravity = 0.1;
+
+    let baseAsteroidSpeed = 2;
+    let speedMultiplier = 1;
+
+    // **🔊 Sound Effects**
+    let buttonTapSound = new Audio("https://audio.jukehost.co.uk/5byjcc7TYvqJNvrs9OCay6r9j5mPLKqY");
+    buttonTapSound.volume = 0.9;
+
+    let missileSound = new Audio("https://audio.jukehost.co.uk/6GSbGpVrhFYKc91we3ulTXcRVTLfi8bN");
+    missileSound.loop = true;
+
+    let blastSound = new Audio("/mnt/data/Explosive_blast_sound_effect..mp3");
+    blastSound.volume = 0.7;
+
+    let scoreSound = new Audio("https://audio.jukehost.co.uk/E7QFp9hlyZjWaYsAqVrk6KMZnMggoz9X");
+    scoreSound.volume = 0.6;
+    
+    let bgMusic = new Audio("https://audio.jukehost.co.uk/jWsQkV1enW8l5FTlf6SW2BOwsp7DSo6M");
+    bgMusic.loop = false; // We will handle looping manually
+    bgMusic.volume = 0.8; // Set an initial volume
+
+    // **🔄 Function to Loop Background Music**
+    function playBackgroundMusic() {
+        if (!gameRunning) return;
+        bgMusic.currentTime = 0;
+        bgMusic.play();
+        bgMusic.onended = playBackgroundMusic; // Restart music immediately
+    }
+
+    function startGame() {
+        if (startButton) {
+            startButton.style.display = "none";
+            startButton.disabled = true;
+            startButton.remove();
+        }
+
+        buttonTapSound.play();
+
+        scoreBoard.style.display = "block";
+        missile.style.display = "block";
+        asteroidContainer.style.display = "block";
+
+        gameRunning = true;
+        score = 0;
+        scoreBoard.textContent = "Score: 0";
+
+        playBackgroundMusic(); // Start BGM
+        updateMissile();
+        createAsteroids();
+    }
+
+    startButton.addEventListener("click", startGame);
+
+    function updateMissile() {
+        if (!gameRunning) return;
+
+        if (isMovingUp) {
+            velocity = -2.2;
+            if (angle > -85) angle -= 2;
+            if (missileSound.paused) missileSound.play();
+        } else {
+            velocity += gravity;
+            if (angle < 1) angle += 2;
+            missileSound.pause();
+            missileSound.currentTime = 0;
+        }
+
+        missile.style.top = `${missile.offsetTop + velocity}px`;
+        missile.style.transform = `rotate(${angle}deg)`;
+
+        let bgPos = parseFloat(getComputedStyle(bgContainer).left) - backgroundSpeed;
+        if (bgPos <= -window.innerWidth) bgPos = 0;
+        bgContainer.style.left = `${bgPos}px`;
+
+        checkOutOfBounds();
+        requestAnimationFrame(updateMissile);
+    }
+
+    function checkOutOfBounds() {
+        let missileRect = missile.getBoundingClientRect();
+        if (missileRect.top <= 0 || missileRect.bottom >= window.innerHeight) {
+            triggerBlast();
+        }
+    }
+
+    document.addEventListener("mousedown", startMovingUp);
+    document.addEventListener("mouseup", stopMovingUp);
+    document.addEventListener("touchstart", startMovingUp);
+    document.addEventListener("touchend", stopMovingUp);
+
+    function startMovingUp() {
+        if (!gameRunning) return;
+        isMovingUp = true;
+        fire.style.display = "block";
+    }
+
+    function stopMovingUp() {
+        isMovingUp = false;
+        fire.style.display = "none";
+    }
+
+    function createAsteroids() {
+        if (!gameRunning) return;
+
+        let asteroidTypes = [
+            "https://i.postimg.cc/qBQkf6gM/Picsart-25-02-21-11-31-36-811.png",
+            "https://i.postimg.cc/7h3c9yy2/Picsart-25-02-24-13-05-48-715.png"
+        ];
+
+        let asteroidCount = Math.floor(Math.random() * 3) + 2; // Spawns 2 to 3 asteroids
+
+        for (let i = 0; i < asteroidCount; i++) {
+            let asteroid = document.createElement("div");
+            asteroid.classList.add("asteroid");
+
+            let size = Math.random() * 80 + 50;
+            asteroid.style.width = `${size}px`;
+            asteroid.style.height = `${size}px`;
+            asteroid.style.top = `${Math.random() * window.innerHeight}px`;
+            asteroid.style.left = `${window.innerWidth}px`;
+            asteroid.style.borderRadius = "50%";
+
+            let randomType = Math.floor(Math.random() * asteroidTypes.length);
+            asteroid.style.backgroundImage = `url('${asteroidTypes[randomType]}')`;
+            asteroid.style.backgroundSize = "cover";
+            asteroid.style.backgroundPosition = "center";
+
+            asteroidContainer.appendChild(asteroid);
+            moveAsteroid(asteroid);
+        }
+
+        setTimeout(createAsteroids, Math.floor(Math.random() * 4000) + 1000);
+    }
+
+    function moveAsteroid(asteroid) {
+        let speed = baseAsteroidSpeed * speedMultiplier;
+
+        function updatePosition() {
+            if (!gameRunning) return;
+
+            asteroid.style.left = `${asteroid.offsetLeft - speed}px`;
+
+            if (asteroid.offsetLeft < -100) {
+                asteroid.remove();
+                if (gameRunning) {
+                    increaseScore();
+                }
+            } else {
+                requestAnimationFrame(updatePosition);
+            }
+
+            checkCollision(asteroid);
+        }
+
+        updatePosition();
+    }
+
+    function increaseScore() {
+        score++;
+        scoreBoard.textContent = `Score: ${score}`;
+
+        if (score > 2) {
+            scoreSound.currentTime = 0;
+            scoreSound.play();
+            setTimeout(() => {
+                scoreSound.currentTime = 0;
+                scoreSound.play();
+            }, 200);
+        } else {
+            scoreSound.currentTime = 0;
+            scoreSound.play();
+        }
+    }
+
+    function checkCollision(asteroid) {
+        let missileRect = missile.getBoundingClientRect();
+        let asteroidRect = asteroid.getBoundingClientRect();
+
+        let missileSafeLeft = missileRect.left + missileRect.width * 0.4;
+
+        if (
+            missileSafeLeft < asteroidRect.right - 10 &&
+            missileRect.right > asteroidRect.left + 10 &&
+            missileRect.top < asteroidRect.bottom - 10 &&
+            missileRect.bottom > asteroidRect.top + 10
+        ) {
+            triggerBlast();
+        }
+    }
+
+    function triggerBlast() {
+        gameRunning = false;
+        missileSound.pause();
+        blastSound.currentTime = 0;
+        blastSound.play();
+
+        fadeOutBGM(); // **Fade out background music**
+
+        setTimeout(() => {
+            alert("Game Over! Your Score: " + score);
+            restartButton.style.display = "block";
+        }, 500);
+    }
+    function fadeOutBGM() {
+    let fadeTime = 500; // **0.5 seconds fade-out**
+    let fadeStep = 50; // Adjust volume every 50ms
+    let fadeAmount = bgMusic.volume / (fadeTime / fadeStep);
+
+    let fadeInterval = setInterval(() => {
+        if (bgMusic.volume > fadeAmount) {
+            bgMusic.volume -= fadeAmount;
+        } else {
+            bgMusic.pause();
+            bgMusic.volume = 0.5; // Reset volume for next game
+            clearInterval(fadeInterval);
+        }
+    }, fadeStep);
+}
+    
+    restartButton.addEventListener("click", function () {
+        buttonTapSound.play();
+
+        setTimeout(() => {
+            gameRunning = true;
+            score = 0;
+            scoreBoard.textContent = "Score: 0";
+            restartButton.style.display = "none";
+            asteroidContainer.innerHTML = "";
+            missile.style.top = "50%";
+
+            playBackgroundMusic();
+            updateMissile();
+            createAsteroids();
+        }, 200);
+    });
+});
+function checkCollision(asteroid) {
+    let missileRect = missile.getBoundingClientRect();
+    let asteroidRect = asteroid.getBoundingClientRect();
+
+    let asteroidTop = asteroidRect.top;
+    let asteroidBottom = asteroidRect.bottom;
+    let asteroidLeft = asteroidRect.left;
+    let asteroidRight = asteroidRect.right;
+
+    let asteroidHeight = asteroidRect.height;
+    let asteroidWidth = asteroidRect.width;
+
+    let topIgnoreZone = asteroidTop + asteroidHeight * 0.2; // Top 30%
+    let bottomIgnoreZone = asteroidBottom - asteroidHeight * 0.2; // Bottom 30%
+    let leftIgnoreZone = asteroidLeft + asteroidWidth * 0.2; // Left 30%
+    let rightIgnoreZone = asteroidRight - asteroidWidth * 0.2; // Right 30%
+
+    // **Check if collision happens outside the ignored zones**
+    if (
+        missileRect.right > asteroidLeft + 10 && // Missile right side past asteroid left side
+        missileRect.left < asteroidRight - 10 && // Missile left side past asteroid right side
+        missileRect.bottom > topIgnoreZone && // Missile is below the top ignore zone
+        missileRect.top < bottomIgnoreZone // Missile is above the bottom ignore zone
+    ) {
+        triggerBlast(); // **Only trigger game over if NOT in ignore zone**
+    }
+}
+function playBackgroundMusic() {
+    if (!gameRunning) return;
+    
+    bgMusic.currentTime = 0;
+    bgMusic.play();
+    
+    // Restart just before it ends to eliminate gaps
+    let bufferTime = 0.01; // Adjust this value based on the gap size
+    let restartTime = bgMusic.duration - bufferTime;
+
+    let musicLoop = setInterval(() => {
+        if (!gameRunning) {
+            clearInterval(musicLoop);
+            return;
+        }
+
+        if (bgMusic.currentTime >= restartTime) {
+            bgMusic.currentTime = 0;
+            bgMusic.play();
+        }
+    }, 10); // Check every 10ms
+}</script>
